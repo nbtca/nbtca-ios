@@ -116,17 +116,6 @@ final class OptimizationTests: XCTestCase {
         try Data("blocked".utf8).write(to: folder)
         XCTAssertThrowsError(try FormDraftStore(directory: folder).save(FormDraft(fields: [:]), account: "a", key: "new"))
     }
-    func testTodayListUsesShanghaiDateAndTeachingWeeks() {
-        let course = AcademicCourse(id: "a", name: "数学", teacher: "", location: "", weekText: "", periodText: "", weekday: 3, startPeriod: 1, endPeriod: 2, weeks: [6], practice: false)
-        var timetable = AcademicTimetable(courses: [course], periods: [], days: [], unrecognizedCount: 0, weekOneMonday: "2026-09-14")
-        let date = AcademicParser.dateTime("2026-10-21", "00:10")!
-        XCTAssertEqual(timetable.courses(on: date, from: [course]).map(\.id), ["a"])
-        XCTAssertTrue(timetable.courses(on: date.addingTimeInterval(-3600), from: [course]).isEmpty)
-        timetable.unavailableDays = ["6:3"]
-        XCTAssertTrue(timetable.courses(on: date, from: [course]).isEmpty)
-        timetable.weekOneMonday = nil
-        XCTAssertTrue(timetable.courses(on: date, from: [course]).isEmpty)
-    }
     func testCalendarDiffSeparatesRoomChangesReschedulesAndRemovedCourses() {
         let start = Date(timeIntervalSince1970: 1000)
         func event(_ room: String, time: Date? = nil) -> CalendarEventSnapshot {

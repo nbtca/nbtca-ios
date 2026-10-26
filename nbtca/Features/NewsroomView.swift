@@ -16,7 +16,6 @@ struct NewsroomView: View {
     var body: some View {
         AdaptivePage { columnCount in
             VStack(spacing: 0) {
-                FavoriteShortcuts()
                 UpcomingCourseBanner()
                 categoryTabs
                 TabView(selection: $category) {

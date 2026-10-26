@@ -181,13 +181,3 @@ nonisolated struct TimetableExportPlan: Identifiable, Sendable {
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
-
-extension AcademicTimetable {
-    nonisolated func courses(on date: Date, from courses: [AcademicCourse]) -> [AcademicCourse] {
-        guard let week = currentWeek(at: date) else { return [] }
-        let day = (AcademicParser.calendar.component(.weekday, from: date) + 5) % 7 + 1
-        guard self.date(week: week, weekday: day) == Self.dateString(date) else { return [] }
-        return courses.filter { $0.hasTime && $0.weekday == day && $0.weeks.contains(week) }
-            .sorted { ($0.startPeriod ?? 0, $0.name) < ($1.startPeriod ?? 0, $1.name) }
-    }
-}

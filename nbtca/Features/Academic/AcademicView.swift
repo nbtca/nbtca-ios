@@ -9,7 +9,6 @@ struct AcademicView: View {
     @State private var showLogin = false
     @State private var showLogout = false
     @State private var search = ""
-    @AppStorage("timetable.presentation") private var presentation = "week"
     @State private var exportPlan: TimetableExportPlan?
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
@@ -123,26 +122,16 @@ struct AcademicView: View {
     }
     @ViewBuilder private func timetableContent() -> some View {
         if let timetable = store.timetable {
-            Picker("课表视图", selection: $presentation) {
-                Text("一周").tag("week")
-                Text("今日").tag("today")
-            }.pickerStyle(.segmented)
-            if presentation == "week" {
-                HStack(spacing: 12) {
-                    Stepper(value: $store.week, in: 1...timetable.displayMaxWeek) { Text("第 \(store.week) 周").font(.headline) }
-                    Button("本周") { store.showCurrentWeek() }
-                        .buttonStyle(.bordered).disabled(store.selectedTerm?.current == false || timetable.currentWeek() == nil || timetable.currentWeek() == store.week)
-                }
+            HStack(spacing: 12) {
+                Stepper(value: $store.week, in: 1...timetable.displayMaxWeek) { Text("第 \(store.week) 周").font(.headline) }
+                Button("本周") { store.showCurrentWeek() }
+                    .buttonStyle(.bordered).disabled(store.selectedTerm?.current == false || timetable.currentWeek() == nil || timetable.currentWeek() == store.week)
             }
             if timetable.days.isEmpty && timetable.weekOneMonday == nil { Text("校历数据暂不可用").font(.caption).foregroundStyle(.secondary) }
             let courses = timetable.courses.filter { matches($0.name + $0.teacher + $0.location) }
-            if presentation == "today" {
-                TodayCoursesView(timetable: timetable, courses: courses)
-            } else {
-                TimetableWeekView(timetable: timetable, week: store.week, courses: courses)
-                if !courses.contains(where: { $0.hasTime && $0.weeks.contains(store.week) }) {
-                    Text("本周暂无匹配课程").font(.subheadline).foregroundStyle(.secondary)
-                }
+            TimetableWeekView(timetable: timetable, week: store.week, courses: courses)
+            if !courses.contains(where: { $0.hasTime && $0.weeks.contains(store.week) }) {
+                Text("本周暂无匹配课程").font(.subheadline).foregroundStyle(.secondary)
             }
             if let term = store.selectedTerm {
                 Button {
