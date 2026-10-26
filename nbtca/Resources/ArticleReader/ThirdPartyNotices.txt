@@ -1,0 +1,14 @@
+The article reader bundles these libraries locally; it does not fetch scripts
+from a CDN at runtime.
+
+markdown-it 15.0.3 — MIT
+https://github.com/markdown-it/markdown-it
+Source: npm package markdown-it@15.0.3, dist/browser/markdown-it.umd.min.js
+SHA-256: 391f2aa638e75e6c7859d0a5c5650ef0956722a45998f17e05b83bc655778e1e
+See MarkdownIt-LICENSE.txt.
+
+DOMPurify 3.4.17 — Apache License 2.0 (selected from its dual license)
+https://github.com/cure53/DOMPurify
+Source: npm package dompurify@3.4.17, dist/purify.min.js
+SHA-256: cd37898f9782adf54820c413191b5691803f0f137c799d6edcfd38523b4c2c31
+See DOMPurify-LICENSE.txt.
