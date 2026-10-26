@@ -62,7 +62,7 @@ struct AcademicView: View {
                 }.pageContent(maxWidth: AppLayout.gridMaxWidth)
             }.refreshable { await store.reload(); network.recheck() }
         }
-        .background(Color.canvas).navigationTitle("教务查询").navigationBarTitleDisplayMode(.inline)
+        .background(Color.canvas).navigationTitle(initialKind.title).navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, prompt: "搜索课程、教师或地点")
         .toolbar {
             if store.hasSession || store.hasRememberedSession {
@@ -107,18 +107,13 @@ struct AcademicView: View {
         }
     }
     private var queryControls: some View {
-        VStack(spacing: 14) {
-            Picker("查询内容", selection: $store.kind) {
-                ForEach(AcademicKind.allCases) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented)
-            HStack {
-                Text("学期").foregroundStyle(.secondary)
-                Spacer(minLength: 12)
-                Picker("学期", selection: $store.selectedTermID) {
-                    ForEach(store.terms) { term in Text(term.title).tag(term.id) }
-                }.pickerStyle(.menu).labelsHidden()
-            }.font(.subheadline)
-        }
+        HStack {
+            Text("学期").foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Picker("学期", selection: $store.selectedTermID) {
+                ForEach(store.terms) { term in Text(term.title).tag(term.id) }
+            }.pickerStyle(.menu).labelsHidden()
+        }.font(.subheadline)
     }
     @ViewBuilder private func timetableContent() -> some View {
         if let timetable = store.timetable {
