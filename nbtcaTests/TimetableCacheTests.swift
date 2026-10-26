@@ -124,6 +124,30 @@ final class TimetableCacheTests: XCTestCase {
             XCTAssertEqual(store.timetable?.courses.count, 1)
         }
     }
+    func testExistingCacheWithoutCalendarOpensAtCurrentWeekOffline() throws {
+        try withCache { cache, directory in
+            var schedule = timetable(); schedule.weekOneMonday = nil
+            try cache.save(schedule, term: term)
+            let store = AcademicStore(cache: TimetableCache(directory: directory))
+            store.showCurrentWeek(at: date("2026-10-26", "12:00"))
+            XCTAssertFalse(store.hasSession)
+            XCTAssertEqual(store.timetable?.weekOneMonday, "2026-09-14")
+            XCTAssertEqual(store.week, 7)
+            XCTAssertEqual(store.timetable?.date(week: store.week, weekday: 1), "2026-10-26")
+        }
+    }
+    func testUnavailableCalendarDoesNotResetManuallySelectedWeek() throws {
+        try withCache { cache, _ in
+            let unknown = AcademicTerm(year: "2028", semester: "3", yearLabel: "2028-2029", semesterLabel: "3", current: true)
+            var schedule = timetable(); schedule.weekOneMonday = nil
+            try cache.save(schedule, term: unknown)
+            let store = AcademicStore(cache: cache)
+            store.week = 5
+            store.showCurrentWeek(at: date("2026-10-26", "12:00"))
+            XCTAssertEqual(store.week, 5)
+            XCTAssertNil(store.timetable?.weekOneMonday)
+        }
+    }
     func testLogoutClearsOfflineTimetableAndHomeReminder() throws {
         try withCache { cache, directory in
             try cache.save(timetable(), term: term)

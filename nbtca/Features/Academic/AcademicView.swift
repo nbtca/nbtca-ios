@@ -127,7 +127,10 @@ struct AcademicView: View {
                 Button("本周") { store.showCurrentWeek() }
                     .buttonStyle(.bordered).disabled(store.selectedTerm?.current == false || timetable.currentWeek() == nil || timetable.currentWeek() == store.week)
             }
-            if timetable.days.isEmpty && timetable.weekOneMonday == nil { Text("校历数据暂不可用").font(.caption).foregroundStyle(.secondary) }
+            if timetable.days.isEmpty && timetable.weekOneMonday == nil {
+                Text("暂时无法确定本周，当前显示手动选择的第 \(store.week) 周。可下拉重试获取校历。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             let courses = timetable.courses.filter { matches($0.name + $0.teacher + $0.location) }
             TimetableWeekView(timetable: timetable, week: store.week, courses: courses)
             if !courses.contains(where: { $0.hasTime && $0.weeks.contains(store.week) }) {

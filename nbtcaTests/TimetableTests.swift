@@ -78,6 +78,65 @@ final class TimetableTests: XCTestCase {
         XCTAssertNil(AcademicCalendarParser.weekOne(event("20260915"), term: term))
         XCTAssertNil(AcademicCalendarParser.weekOne(event("20260914", extra: "STATUS:CANCELLED\n"), term: term))
     }
+    func testVerifiedSchoolCalendarMatchesExactPublishedTerms() {
+        XCTAssertEqual(VerifiedSchoolCalendar.weekOne(for: term), "2026-09-14")
+        let spring = AcademicTerm(year: "2026", semester: "12", yearLabel: "2026-2027", semesterLabel: "12", current: true)
+        XCTAssertEqual(VerifiedSchoolCalendar.weekOne(for: spring), "2027-03-01")
+        let unknown = AcademicTerm(year: "2028", semester: "3", yearLabel: "2028-2029", semesterLabel: "3", current: true)
+        XCTAssertNil(VerifiedSchoolCalendar.weekOne(for: unknown))
+    }
+    private func calendarDefaults() -> UserDefaults {
+        let name = "calendar-feed-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: name) }
+        return defaults
+    }
+    func testKnownCalendarReturnsImmediatelyWhileNetworkIsStillPending() async {
+        var pending: CheckedContinuation<String?, Never>?
+        let feed = AcademicCalendarFeed(defaults: calendarDefaults(), fetch: {
+            await withCheckedContinuation { pending = $0 }
+        })
+        // This must return before the network continuation is resumed.
+        let monday = await feed.weekOne(for: term)
+        XCTAssertEqual(monday, "2026-09-14")
+        while pending == nil { await Task.yield() }
+        let shared = await feed.weekOne(for: term)
+        XCTAssertEqual(shared, "2026-09-14")
+        pending?.resume(returning: nil)
+        await Task.yield()
+    }
+    func testFailedCalendarFetchCanRetryWithoutRestartingApp() async {
+        var calls = 0
+        let feed = AcademicCalendarFeed(defaults: calendarDefaults(), fallback: { _ in nil }, fetch: {
+            calls += 1
+            return calls == 1 ? nil : "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260914\nSUMMARY:秋季学期开始上课\nEND:VEVENT\n"
+        })
+        let first = await feed.weekOne(for: term)
+        let second = await feed.weekOne(for: term)
+        XCTAssertNil(first); XCTAssertEqual(second, "2026-09-14"); XCTAssertEqual(calls, 2)
+    }
+    func testCalendarFetchCoalescesConcurrentQueries() async {
+        var calls = 0
+        var pending: CheckedContinuation<String?, Never>?
+        let feed = AcademicCalendarFeed(defaults: calendarDefaults(), fallback: { _ in nil }, fetch: {
+            calls += 1
+            return await withCheckedContinuation { pending = $0 }
+        })
+        let first = Task { await feed.weekOne(for: term) }
+        while pending == nil { await Task.yield() }
+        let second = Task { await feed.weekOne(for: term) }
+        await Task.yield()
+        pending?.resume(returning: "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260914\nSUMMARY:秋季学期开始上课\nEND:VEVENT\n")
+        let a = await first.value, b = await second.value
+        XCTAssertEqual(a, "2026-09-14"); XCTAssertEqual(b, a); XCTAssertEqual(calls, 1)
+    }
+    func testInvalidOrDifferentYearSavedAnchorIsRejected() async {
+        let defaults = calendarDefaults()
+        defaults.set("2025-09-15", forKey: "academic.week-one." + term.id)
+        let feed = AcademicCalendarFeed(defaults: defaults, fallback: { _ in nil }, fetch: { nil })
+        let value = await feed.weekOne(for: term)
+        XCTAssertNil(value)
+    }
     func testGridUsesMergedPeriodSpansAndSeparatesOverlappingCourses() {
         let courses = [course("A", start: 1, end: 2), course("B", start: 2, end: 4), course("C", start: 4, end: 5), course("D", start: 6, end: 7)]
         let blocks = TimetableGridLayout.blocks(courses, week: 1)

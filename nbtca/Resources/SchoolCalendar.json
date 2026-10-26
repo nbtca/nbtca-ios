@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "source": "https://www.nbt.edu.cn/info/1047/13069.htm",
+  "verifiedOn": "2026-10-26",
+  "terms": [
+    { "year": "2026", "semester": "3", "weekOneMonday": "2026-09-14" },
+    { "year": "2026", "semester": "12", "weekOneMonday": "2027-03-01" }
+  ]
+}

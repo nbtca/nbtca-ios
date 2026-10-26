@@ -12,6 +12,9 @@ with tempfile.TemporaryDirectory(prefix="nbtca-academic-tests-") as folder:
     tests = root / "Tests" / "nbtcaTests"
     sources.mkdir(parents=True)
     tests.mkdir(parents=True)
+    resources = sources / "Resources"
+    resources.mkdir()
+    shutil.copy2(repo / "nbtca" / "Resources" / "SchoolCalendar.json", resources / "SchoolCalendar.json")
     for name in ("AcademicModels.swift", "CampusClient.swift", "CampusLoginNavigation.swift", "CampusSessionStorage.swift", "DormitoryModels.swift", "CampusWebSession.swift", "AcademicStore.swift", "DormitoryStore.swift", "TimetableSchedule.swift", "TimetableCalendarExport.swift", "TimetableCalendarDiff.swift", "TimetableCache.swift"):
         shutil.copy2(repo / "nbtca" / "Features" / "Academic" / name, sources / name)
     for name in ("Models.swift", "FormDraftStore.swift", "AppStore.swift", "APIClient.swift"):
@@ -22,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix="nbtca-academic-tests-") as folder:
         shutil.copy2(repo / "nbtcaTests" / name, tests / name)
     (root / "Package.swift").write_text('''// swift-tools-version: 6.0
 import PackageDescription
-let package = Package(name: "AcademicProtocolTests", platforms: [.macOS(.v14)], targets: [.target(name: "nbtca"), .testTarget(name: "nbtcaTests", dependencies: ["nbtca"])], swiftLanguageModes: [.v5])
+let package = Package(name: "AcademicProtocolTests", platforms: [.macOS(.v14)], targets: [.target(name: "nbtca", resources: [.process("Resources")]), .testTarget(name: "nbtcaTests", dependencies: ["nbtca"])], swiftLanguageModes: [.v5])
 ''')
     result = subprocess.run(["swift", "test", "--jobs", "2", "--package-path", str(root)], check=False)
     raise SystemExit(result.returncode)

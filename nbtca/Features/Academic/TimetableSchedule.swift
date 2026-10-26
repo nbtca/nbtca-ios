@@ -46,6 +46,12 @@ extension AcademicTimetable {
 }
 
 nonisolated enum AcademicCalendarParser {
+    static func validMonday(_ value: String, term: AcademicTerm) -> Bool {
+        guard let year = Int(term.year), ["3", "12"].contains(term.semester),
+              let date = AcademicParser.dateTime(value, "00:00") else { return false }
+        return AcademicParser.calendar.component(.weekday, from: date) == 2 &&
+            AcademicParser.calendar.component(.year, from: date) == (term.semester == "3" ? year : year + 1)
+    }
     /// The public school calendar used by Prompt / @nbtca/nbtcal. Only exact,
     /// all-day semester-start markers are used; other events are irrelevant.
     static func weekOne(_ ics: String, term: AcademicTerm) -> String? {
@@ -72,35 +78,85 @@ nonisolated enum AcademicCalendarParser {
     }
 }
 
+/// Verified dates from the school's published calendar, limited to exact terms.
+/// Remote calendar dates take precedence; unknown academic years stay unknown.
+nonisolated enum VerifiedSchoolCalendar {
+    private struct Archive: Decodable {
+        let version: Int
+        let terms: [Term]
+    }
+    private struct Term: Decodable {
+        let year, semester, weekOneMonday: String
+    }
+    private static let archive: Archive? = {
+        #if SWIFT_PACKAGE
+        let bundle = Bundle.module
+        #else
+        let bundle = Bundle.main
+        #endif
+        guard let url = bundle.url(forResource: "SchoolCalendar", withExtension: "json"),
+              let data = try? Data(contentsOf: url), let archive = try? JSONDecoder().decode(Archive.self, from: data),
+              archive.version == 1 else { return nil }
+        return archive
+    }()
+    static func weekOne(for term: AcademicTerm) -> String? {
+        let matches = Set((archive?.terms ?? []).filter { $0.year == term.year && $0.semester == term.semester }.map(\.weekOneMonday))
+        guard matches.count == 1, let value = matches.first, AcademicCalendarParser.validMonday(value, term: term) else { return nil }
+        return value
+    }
+}
+
 @MainActor
 final class AcademicCalendarFeed {
     static let shared = AcademicCalendarFeed()
     private var text: String?
     private var request: Task<String?, Never>?
-    private var attempted = false
+    private let defaults: UserDefaults
+    private let fallback: (AcademicTerm) -> String?
+    private let fetch: () async -> String?
+    init(defaults: UserDefaults = .standard,
+         fallback: @escaping (AcademicTerm) -> String? = { VerifiedSchoolCalendar.weekOne(for: $0) },
+         fetch: @escaping () async -> String? = { await AcademicCalendarFeed.fetchRemote() }) {
+        self.defaults = defaults; self.fallback = fallback; self.fetch = fetch
+    }
     func weekOne(for term: AcademicTerm) async -> String? {
         let cacheKey = "academic.week-one.\(term.id)"
-        if !attempted {
-            attempted = true
-            request = Task {
-                let config = URLSessionConfiguration.ephemeral
-                config.httpCookieStorage = nil; config.urlCredentialStorage = nil
-                config.timeoutIntervalForRequest = 8; config.timeoutIntervalForResource = 10
-                let session = URLSession(configuration: config)
-                defer { session.invalidateAndCancel() }
-                do {
-                    let (data, response) = try await session.data(from: URL(string: "https://ical.nbtca.space/school.ics")!)
-                    guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-                          response.url?.scheme == "https", response.url?.host == "ical.nbtca.space", data.count <= 2 * 1024 * 1024 else { return nil }
-                    return String(data: data, encoding: .utf8)
-                } catch { return nil }
+        if let text, let value = AcademicCalendarParser.weekOne(text, term: term) { return value }
+        // Coalesce concurrent lookups, but let a later query retry a failed fetch.
+        if request == nil {
+            let fetch = fetch
+            request = Task { @MainActor [weak self] in
+                let value = await fetch()
+                if let self {
+                    self.text = value; self.request = nil
+                    if let value, let monday = AcademicCalendarParser.weekOne(value, term: term) {
+                        self.defaults.set(monday, forKey: cacheKey)
+                    }
+                }
+                return value
             }
         }
-        if let request { text = await request.value; self.request = nil }
-        if let text, let value = AcademicCalendarParser.weekOne(text, term: term) {
-            UserDefaults.standard.set(value, forKey: cacheKey); return value
+        // A known date is immediately usable offline while the remote refresh runs.
+        if let saved = defaults.string(forKey: cacheKey), AcademicCalendarParser.validMonday(saved, term: term) { return saved }
+        if let saved = fallback(term), AcademicCalendarParser.validMonday(saved, term: term) { return saved }
+        if let pending = request, let text = await pending.value,
+           let value = AcademicCalendarParser.weekOne(text, term: term) {
+            defaults.set(value, forKey: cacheKey); return value
         }
-        return UserDefaults.standard.string(forKey: cacheKey)
+        return nil
+    }
+    private static func fetchRemote() async -> String? {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil; config.urlCredentialStorage = nil
+        config.timeoutIntervalForRequest = 8; config.timeoutIntervalForResource = 10
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        do {
+            let (data, response) = try await session.data(from: URL(string: "https://ical.nbtca.space/school.ics")!)
+            guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+                  response.url?.scheme == "https", response.url?.host == "ical.nbtca.space", data.count <= 2 * 1024 * 1024 else { return nil }
+            return String(data: data, encoding: .utf8)
+        } catch { return nil }
     }
 }
 

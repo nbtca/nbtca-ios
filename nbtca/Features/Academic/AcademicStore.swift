@@ -71,6 +71,11 @@ final class AcademicStore {
     }
     private func restoreCachedTimetable() {
         timetable = cache.saved(for: selectedTermID)?.timetable
+        if var saved = timetable, saved.weekOneMonday == nil,
+           let term = cache.saved(for: selectedTermID)?.term,
+           let monday = VerifiedSchoolCalendar.weekOne(for: term), saved.acceptsWeekOne(monday) {
+            saved.weekOneMonday = monday; timetable = saved
+        }
         isUsingSavedTimetable = timetable != nil
     }
     func session(for route: CampusRoute) -> CampusWebSession {
@@ -90,7 +95,8 @@ final class AcademicStore {
     func resume() { suspended = false }
     func showCurrentWeek(at date: Date = Date()) {
         guard let timetable else { return }
-        week = selectedTerm?.current == false ? 1 : timetable.currentWeek(at: date) ?? 1
+        if selectedTerm?.current == false { week = 1 }
+        else if let current = timetable.currentWeek(at: date) { week = current }
     }
     func clearSensitiveRecords() { suspended = true; requestID = UUID(); clearRecords(); loading = false }
     func activate(_ route: CampusRoute?) async {
