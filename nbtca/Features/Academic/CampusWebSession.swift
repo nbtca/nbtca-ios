@@ -64,12 +64,18 @@ final class CampusWebSession {
     private let context: CampusSchoolSession.Context
     var websiteDataStore: WKWebsiteDataStore { context.websiteDataStore }
     lazy var browser = CampusSessionBrowser(route: route, service: service, websiteDataStore: websiteDataStore)
-    lazy var client: CampusClient = CampusClient(route: route, service: service, sharedCookies: context.cookies,
-        calendarProvider: { await AcademicCalendarFeed.shared.weekOne(for: $0) },
-        browserTransport: service == .dormitory ? { [weak self] request in
-            guard let self else { throw CancellationError() }
-            return try await self.browser.response(request)
-        } : nil)
+    lazy var client: CampusClient = {
+        var transport: ((URLRequest) async throws -> (Data, HTTPURLResponse))?
+        if service == .dormitory {
+            transport = { [weak self] request in
+                guard let self else { throw CancellationError() }
+                return try await self.browser.response(request)
+            }
+        }
+        let provider: ((AcademicTerm) async -> String?)? = { await AcademicCalendarFeed.shared.weekOne(for: $0) }
+        return CampusClient(route: route, service: service, sharedCookies: context.cookies,
+            calendarProvider: provider, browserTransport: transport)
+    }()
     var storageNotice: String? { context.storageNotice }
     var hasCredentials: Bool { CampusSchoolSession.shared.hasCredentials(for: route) }
     init(route: CampusRoute, service: CampusService = .academic) {
